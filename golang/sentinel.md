@@ -13,7 +13,7 @@ Sentinel是阿里开源的一款轻量级流控框架，主要以流量为切入
 ### [api](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/api)
 api包面向户程序，提供了使用Sentinel功能的入口函数。
 
-#### 资源埋点
+#### 访问资源
 ```
 func Entry(resource string, opts ...EntryOption) (*base.SentinelEntry, *base.BlockError)
 func TraceError(entry *base.SentinelEntry, err error) 
@@ -93,9 +93,9 @@ type ResourceNode struct {
 ```
 埋点的具体实现是ResourceNode对象，stat包中创建一个全局的resNodeMap，保存Resource到ResourceNode之间的关系，用于查找。
 
-sbase.SlidingWindowMetric用于实现计数器，实现堆埋点数据的记录。
+ResourceNode通过BaseStatNode的sbase.BucketLeapArray对象对各种event事件进行原子计数，事件类型包括资源访问通过数，资源访问失败时，资源访问超时数，总体资源访问数等。
 
-sbase.SlidingWindowMetric用于实现滑动窗口，实现对埋点数据的读取。
+ResourceNode通过BaseStatNode的sbase.SlidingWindowMetric对象实现对埋点数据的格式化获取，比如QPS计算等。
 
 #### 统计
 StatisticSlot对象实现了StatSlot接口，具体处理逻辑：
