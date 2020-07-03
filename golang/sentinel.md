@@ -1,36 +1,29 @@
 # Sentinel-golang源码解析
 
 ## Sentinel简介
-Sentinel是阿里开源的一款轻量级流控框架，主要以流量为切入点，从流量控制、熔断降级、系统负载保护等多个维度来帮助用户保护服务的稳定性。
+[Sentinel](https://github.com/alibaba/sentinel-golang/tree/v0.4.0)是阿里开源的一款轻量级流控框架，从流量控制、熔断降级、系统负载保护等多个维度来帮助用户保护服务的稳定性。
 
 相比于Hystrix，Sentinel的设计更加简单，在 Sentinel中资源定义和规则配置是分离的，也就是说用户可以先通过Sentinel API给对应的业务逻辑定义资源（埋点），然后在需要的时候再配置规则，通过这种组合方式，极大的增加了Sentinel流控的灵活性。
 
-引入Sentinel带来的性能损耗非常小。只有在业务单机量级超过25W QPS的时候才会有一些显著的影响（5% - 10% 左右），单机QPS不太大的时候损耗几乎可以忽略不计。
-
-## 主要功能
-- 流量控制：监控资源的QPS和并发数，当流量超过阈值时，直接拒绝或者排队等待。
-- 熔断降级：监控资源的慢调用率和失败率，超过阈值时触发熔断，此时用户程序对资源访问进行降级。
-- 系统负载保护：监控系统的Load和Cpu使用率，以及全局的QPS和并发数。
+引入Sentinel带来的性能损耗非常小，只有在业务单机量级超过25W QPS的时候才会有一些显著的影响（5% - 10% 左右），单机QPS不太大的时候损耗几乎可以忽略不计。
 
 ## 源码解析
-
-### 项目地址
-[sentinel-golang](https://github.com/alibaba/sentinel-golang/tree/v0.4.0)
-
 ### 代码结构
-
+![结构图](../image/sentinel.png)
 
 ### [api](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/api)
 api包面向户程序，提供了使用Sentinel功能的入口函数。
 
 #### 资源访问
+Sentinel流控的对象是资源(Resource)，可以把一块内存，一个连接，甚至一段代码作为一个资源进行流控。
+
 ```
 func Entry(resource string, opts ...EntryOption) (*base.SentinelEntry, *base.BlockError)
 func TraceError(entry *base.SentinelEntry, err error) 
 ```
-用户程序在访问资源前，调用api.Entry函数对资源进行埋点，Sentinel同时会对该资源做流控规则检查，检查失败，则返回base.BlockError错误，此时应用程序执行自定义的Fallback函数对请求直接拒绝或者降级处理。
+用户程序在访问资源前，调用api.Entry函数，Sentinel内部会统计该资源的访问信息，并基于统计信息执行规则检查，用户程序只有在检查通过后才能访问资源，如果检查失败，则返回base.BlockError。
 
-资源检查成功时，api.Entry函数返回新创建的base.SentinelEntry对象，此时应用程序可以访问资源，如果资源访问出错，需要主动调用api.TraceError函数反馈错误给Sentinel，并在最后无论如何要调用base.SentinelEntry对象的Exit方法，Sentinel会在Exit方法内检查本次资源访问是否出错，并更新该资源的监控指标。
+用户程序访问资源时，如果访问出错(比如请求超时)，需要调用api.TraceError函数反馈失败信息，用于内部统计。
 
 ### [core/base](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/base)
 #### 插槽
@@ -46,15 +39,15 @@ type SlotChain struct {
 func (sc *SlotChain) Entry(ctx *EntryContext) *TokenResult
 func (sc *SlotChain) exit(ctx *EntryContext) 
 ```
-SlotChain是一个全局对象，应用程序调用的api.Entry函数内部调用了SlotChain.Entry，作为一个全局插槽，可以支持三种Slot在初始化的时候插入进来，并在SlotChain.Entry函数内链式调用。
+Sentinel内部创建了一个全局的SlotChain对象，并提供了响应api.Entry的Entry函数。
 
-执行流程
-- 顺序执行statPres：执行前置处理，stat统计模块会为当前资源查找StatNode埋点，如果没有找到就创建一个出来,
-- 顺序执行ruleChecks：执行流控规则检查，检查结果保存到base.TokenResult中。
-- 顺序执行stats：根据流控规则检查结果，分别执行StatSlot接口的成功和失败两个方法，stat统计模块就实现了StatSlot接口，用于对埋点进行数据统计。
+Sentinel保存了三种类型的插槽，Entry内部顺序执行
+- statPres：统计前置处理，stat统计模块会查找或创建当前资源的StatNode。
+- ruleChecks：规则检查。
+- stats：资源访问统计。
 
 ### [core/stat](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/stat)
-#### 埋点
+#### 资源统计
 ```
 type ReadStat interface {
 	GetQPS(event MetricEvent) float64
@@ -101,20 +94,19 @@ type ResourceNode struct {
 	updateLock    sync.RWMutex
 }
 ```
-埋点的具体实现是ResourceNode对象，stat包中创建一个全局的resNodeMap，保存Resource到ResourceNode之间的关系，用于查找。
+ResourceNode对象用来实现资源统计，全局变量resNodeMap，提供从Resource到ResourceNode之间的查找。
 
-埋点的统计和查询分别由sbase.BucketLeapArray和sbase.SlidingWindowMetric实现。
+数据统计和查询分别由sbase.BucketLeapArray和sbase.SlidingWindowMetric两个对象实现。
 
-#### 统计
-StatisticSlot对象实现了StatSlot接口，具体处理逻辑：
-- OnEntryPassed：goroutine并发数加1；sbase.BucketLeapArray计数器对成功事件累加。
-- OnEntryBlocked：sbase.BucketLeapArray计数器对失败事件累加。
-- OnCompleted：goroutine并发数减1；统计访问资源耗时rt，sbase.BucketLeapArray计数器分别对rt事件，完成事件进行计数，
+StatisticSlot对象实现了StatSlot接口
+- OnEntryPassed：记录并发数和通过数。
+- OnEntryBlocked：记录失败数。
+- OnCompleted：计算资源访问时间并记录，并发数减1。
 
 ### [core/flow](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/flow)
-#### 流量控制规则
-- 支持基于并发数的流量控制
-- 支持基于QPS的流量控制
+#### 流量控制
+- 控制并发数
+- 控制QPS
 
 #### 规则控制器
 ```
@@ -133,11 +125,11 @@ type TrafficShapingController struct {
 	rule *FlowRule
 }
 ```
-通过实现TrafficShapingCalculator和TrafficShapingChecker两个接口，来实现一个规则控制器，前者用于返回一个当前阈值，后者基于该阈值对并发数或者QPS进行规则检查。
+规则控制器需要实现TrafficShapingCalculator和TrafficShapingChecker两个接口，前者用于保存规则的阈值，后者执行规则检查。
 
-flow模块定义了两个控制器，分别对应两种行为：
-- Reject(拒绝)：比较阈值和埋点值的大小，超出阈值则直接返回失败。
-- Throttling(排队)：用于调用者对下游服务的流量控制，检查时不使用埋点数据，而是根据QPS的阈值，计算出资源单次访问的期望耗时，并根据时间戳判断当前访问是否超出流量期望，如果超出则返回检查失败，并返回排队时间给应用程序Sleep等待。
+flow模块定义了两个控制器，对应不同的流控行为
+- Reject(拒绝)：资源访问量超过阈值，直接返回失败。
+- Throttling(排队)：用于调用者对下游服务的流量控制，根据阈值计算出访问资源的期望时间，并判断当前访问时间是否满足期望，如果不满足则返回失败，并返回一个时间给用户程序排队Sleep。
 
 ### [core/circuitbreaker](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/circuitbreaker)
 #### 熔断器
@@ -158,20 +150,20 @@ type CircuitBreaker interface {
 }
 ```
 
-支持三种熔断器，对应不同熔断规则：
-- 慢调用比例：需要设置访问资源的最大时间，超过这个时间认定为是慢调用，当慢调用比例超过规则设置的阈值，触发熔断。
-- 错误调用比例：访问资源失败比例超过规则设置的阈值，触发熔断。
-- 错误调用个数：访问资源失败数量超过规则设置的阈值，触发熔断。
+定义了三种熔断器，对应不同熔断规则：
+- 慢调用比例：需要设置访问资源的最大时间，超过这个时间判定为慢调用，当比例超过阈值，触发熔断。
+- 错误调用比例：访问资源失败比例超过阈值，触发熔断。
+- 错误调用个数：访问资源失败数量超过阈值，触发熔断。
 
-熔断器的入口方法为TryPass，此时检查熔断器的状态：
-- 状态为Close：熔断器关闭状态，直接返回成功。
-- 状态为Open：熔断器打开状态，此时周期性将状态改为HalfOpen，并返回成功由应用程序探测式访问资源，如果本次探测访问失败，熔断器将状态由HalfOpen改为Open，如果成功则改为Close。
-- 状态为HalfOpen：熔断器半开状态，此状态代表熔断器在探测状态，直接返回失败，禁止访问资源。
+熔断器的入口方法为TryPass，判断熔断器的状态
+- 状态为Close：熔断器处于关闭状态，返回成功。
+- 状态为Open：熔断器处于打开状态，此时周期性将状态改为HalfOpen，并返回成功，允许用户程序本次访问资源，如果访问失败，熔断器将状态由HalfOpen改为Open，如果成功则改为Close。
+- 状态为HalfOpen：熔断器处于半打开状态，代表熔断器正在试探中，资源还不能访问，直接返回失败。
 
-熔断器通过实现OnRequestComplete接口，获取当前访问资源的结果，并统计出比例和个数，如果超过规则设定的阈值，则触发熔断，将状态设置为Open。
+熔断器通过实现OnRequestComplete接口，获取当前资源访问结果，并更新统计信息，然后做规则检查，如果触发熔断，则将状态设置为Open。
 
 ### [core/system](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/system)
-系统级防护，不再针对某个资源做限流，而是基于以下全局指标
+系统级防护，不再针对某个资源做限流，而是监控整个系统的全局指标
 - 整体QPS
 - 整体并发量
 - 平均响应时间
