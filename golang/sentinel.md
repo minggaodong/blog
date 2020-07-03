@@ -1,4 +1,5 @@
 # Sentinel-golang源码解析
+
 ## Sentinel简介
 Sentinel是阿里开源的一款轻量级流控框架，主要以流量为切入点，从流量控制、熔断降级、系统负载保护等多个维度来帮助用户保护服务的稳定性。
 
@@ -6,10 +7,19 @@ Sentinel是阿里开源的一款轻量级流控框架，主要以流量为切入
 
 引入Sentinel带来的性能损耗非常小。只有在业务单机量级超过25W QPS的时候才会有一些显著的影响（5% - 10% 左右），单机QPS不太大的时候损耗几乎可以忽略不计。
 
-## 项目地址
-[sentinel-golang](https://github.com/alibaba/sentinel-golang/tree/v0.4.0)
+## 主要功能
+- 流量控制：监控资源的QPS和并发数，当流量超过阈值时，直接拒绝或者排队等待。
+- 熔断降级：监控资源的慢调用率和失败率，超过阈值时触发熔断，此时用户程序对资源访问进行降级。
+- 系统负载保护：监控系统的Load和Cpu使用率，以及全局的QPS和并发数。
 
 ## 源码解析
+
+### 项目地址
+[sentinel-golang](https://github.com/alibaba/sentinel-golang/tree/v0.4.0)
+
+### 代码结构
+
+
 ### [api](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/api)
 api包面向户程序，提供了使用Sentinel功能的入口函数。
 
@@ -126,9 +136,45 @@ type TrafficShapingController struct {
 通过实现TrafficShapingCalculator和TrafficShapingChecker两个接口，来实现一个规则控制器，前者用于返回一个当前阈值，后者基于该阈值对并发数或者QPS进行规则检查。
 
 flow模块定义了两个控制器，分别对应两种行为：
-- Reject(拒绝)：该行为用于服务提供者自身的流量控制，规则检查时直接比较阈值和埋点值的大小，大于阈值直接返回失败。
-- Throttling(限流)：该行为用于调用者对下游服务的流量控制，规则检查时不使用埋点数据，而是根据QPS阈值，计算出单个资源访问的期望耗时，并根据时间戳判断当前访问是否超出流量期望，如果超出则返回检查失败，并返回排队时间给应用程序Sleep等待。
+- Reject(拒绝)：比较阈值和埋点值的大小，超出阈值则直接返回失败。
+- Throttling(排队)：用于调用者对下游服务的流量控制，检查时不使用埋点数据，而是根据QPS的阈值，计算出资源单次访问的期望耗时，并根据时间戳判断当前访问是否超出流量期望，如果超出则返回检查失败，并返回排队时间给应用程序Sleep等待。
 
 ### [core/circuitbreaker](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/circuitbreaker)
+#### 熔断器
 
+```
+type CircuitBreaker interface {
+	// BoundRule returns the associated circuit breaking rule.
+	BoundRule() Rule
+	// BoundStat returns the associated statistic data structure.
+	BoundStat() interface{}
+	// TryPass acquires permission of an invocation only if it is available at the time of invocation.
+	TryPass(ctx *base.EntryContext) bool
+	// CurrentState returns current state of the circuit breaker.
+	CurrentState() State
+	// OnRequestComplete record a completed request with the given response time as well as error (if present),
+	// and handle state transformation of the circuit breaker.
+	OnRequestComplete(rtt uint64, err error)
+}
+```
+
+支持三种熔断器，对应不同熔断规则：
+- 慢调用比例：需要设置访问资源的最大时间，超过这个时间认定为是慢调用，当慢调用比例超过规则设置的阈值，触发熔断。
+- 错误调用比例：访问资源失败比例超过规则设置的阈值，触发熔断。
+- 错误调用个数：访问资源失败数量超过规则设置的阈值，触发熔断。
+
+熔断器的入口方法为TryPass，此时检查熔断器的状态：
+- 状态为Close：熔断器关闭状态，直接返回成功。
+- 状态为Open：熔断器打开状态，此时周期性将状态改为HalfOpen，并返回成功由应用程序探测式访问资源，如果本次探测访问失败，熔断器将状态由HalfOpen改为Open，如果成功则改为Close。
+- 状态为HalfOpen：熔断器半开状态，此状态代表熔断器在探测状态，直接返回失败，禁止访问资源。
+
+熔断器通过实现OnRequestComplete接口，获取当前访问资源的结果，并统计出比例和个数，如果超过规则设定的阈值，则触发熔断，将状态设置为Open。
+
+### [core/system](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/system)
+系统级防护，不再针对某个资源做限流，而是基于以下全局指标
+- 整体QPS
+- 整体并发量
+- 平均响应时间
+- 系统Load
+- CPU使用率
 
