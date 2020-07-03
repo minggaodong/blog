@@ -41,10 +41,10 @@ func (sc *SlotChain) exit(ctx *EntryContext)
 ```
 Sentinel内部创建了一个全局的SlotChain对象，并提供了响应api.Entry的Entry函数。
 
-Sentinel保存了三种类型的插槽，Entry内部顺序执行
-- statPres：统计前置处理，stat统计模块会查找或创建当前资源的StatNode。
-- ruleChecks：规则检查。
-- stats：资源访问统计。
+SlotChain保存了三种类型的Slot切片
+- StatPrepareSlot：用于统计数据的前置处理， 比如统计模块会在前置处理时查找或创建当前资源的StatNode。
+- RuleCheckSlot：用于规则检查，包括流量控制，熔断，系统保护等多种规则。
+- StatSlot：用于统计资源访问信息。
 
 ### [core/stat](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/stat)
 #### 资源统计
