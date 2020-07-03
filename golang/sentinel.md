@@ -13,7 +13,7 @@ Sentinel是阿里开源的一款轻量级流控框架，主要以流量为切入
 ### [api](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/api)
 api包面向户程序，提供了使用Sentinel功能的入口函数。
 
-#### 访问资源
+#### 资源访问
 ```
 func Entry(resource string, opts ...EntryOption) (*base.SentinelEntry, *base.BlockError)
 func TraceError(entry *base.SentinelEntry, err error) 
@@ -93,9 +93,7 @@ type ResourceNode struct {
 ```
 埋点的具体实现是ResourceNode对象，stat包中创建一个全局的resNodeMap，保存Resource到ResourceNode之间的关系，用于查找。
 
-ResourceNode通过BaseStatNode的sbase.BucketLeapArray对象对各种event事件进行原子计数，事件类型包括资源访问通过数，资源访问失败时，资源访问超时数，总体资源访问数等。
-
-ResourceNode通过BaseStatNode的sbase.SlidingWindowMetric对象实现对埋点数据的格式化获取，比如QPS计算等。
+埋点的统计和查询分别由sbase.BucketLeapArray和sbase.SlidingWindowMetric实现。
 
 #### 统计
 StatisticSlot对象实现了StatSlot接口，具体处理逻辑：
@@ -103,7 +101,34 @@ StatisticSlot对象实现了StatSlot接口，具体处理逻辑：
 - OnEntryBlocked：sbase.BucketLeapArray计数器对失败事件累加。
 - OnCompleted：goroutine并发数减1；统计访问资源耗时rt，sbase.BucketLeapArray计数器分别对rt事件，完成事件进行计数，
 
+### [core/flow](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/flow)
+#### 流量控制规则
+- 支持基于并发数的流量控制
+- 支持基于QPS的流量控制
 
-### [core](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core)
+#### 规则控制器
+```
+type TrafficShapingCalculator interface {
+	CalculateAllowedTokens(node base.StatNode, acquireCount uint32, flag int32) float64
+}
 
-### [adapter](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/adapter)
+type TrafficShapingChecker interface {
+	DoCheck(node base.StatNode, acquireCount uint32, threshold float64) *base.TokenResult
+}
+
+type TrafficShapingController struct {
+	flowCalculator TrafficShapingCalculator
+	flowChecker    TrafficShapingChecker
+
+	rule *FlowRule
+}
+```
+通过实现TrafficShapingCalculator和TrafficShapingChecker两个接口，来实现一个规则控制器，前者用于返回一个当前阈值，后者基于该阈值对并发数或者QPS进行规则检查。
+
+flow模块定义了两个控制器，分别对应两种行为：
+- Reject(拒绝)：该行为用于服务提供者自身的流量控制，规则检查时直接比较阈值和埋点值的大小，大于阈值直接返回失败。
+- Throttling(限流)：该行为用于调用者对下游服务的流量控制，规则检查时不使用埋点数据，而是根据QPS阈值，计算出单个资源访问的期望耗时，并根据时间戳判断当前访问是否超出流量期望，如果超出则返回检查失败，并返回排队时间给应用程序Sleep等待。
+
+### [core/circuitbreaker](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/core/circuitbreaker)
+
+
