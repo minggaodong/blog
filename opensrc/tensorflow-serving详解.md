@@ -5,20 +5,19 @@
 ## 简介
 TensorFlow-Serving 是 Google 开源的机器学习在线 Serving 框架，支持将离线模型方便的部署到线上，并开放接口给外部调用。
 
-#### 功能特点
+### 功能特点
 - 支持模型版本控制和回滚
-- 支持高并发，实现高吞吐量
-- 支持 gRPC 和 RestApi 两种对外接口
-- 开箱即用，并且可定制化
 - 支持多模型服务
-- 支持批处理
 - 支持热更新
+- 支持 gRPC 和 RestApi 两种对外接口
+- 支持批处理，高吞吐量
+- 支持 docker + k8s 动态扩缩容
 
-## 安装部署
+## 安装运行
 TensorFlow-Serving 支持 docker，二进制，源码编译三种安装方式，强烈推荐采用 docker 安装（除非有特殊需求无法基于容器运行）。
 
 ### 安装测试
-TensorFlow-Serving 源码中提供了一些测试模型，现在用来从零开始构建一个在线serving。
+TensorFlow-Serving 源码中提供了一些测试模型，以此为例从零开始构建一个在线serving。
 
 #### 下载docker镜像
 ```
@@ -39,84 +38,111 @@ git clone git@github.com:tensorflow/serving.git
 TESTDATA="$(pwd)/serving/tensorflow_serving/servables/tensorflow/testdata"
 docker run -dt -p 8500:8500 -p 8501:8501 -v "$TESTDATA/saved_model_half_plus_two_cpu:/models/half_plus_two" -e MODEL_NAME=half_plus_two tensorflow/serving
 ```
-参数解释
+参数说明
 - -p：端口映射，在容器内部，gRPC的端口是8500，REST的端口是8501
 - -v：目录映射，新版中已经移除–mount type=bind,source=%source_path,target=$target_path的挂载目录方式
-- -e：设置环境变量，docker内部 MODEL_NAME 默认值为 model，MODEL_BASE_PATH 默认值为 /models
+- -e：设置docker环境变量：模型名称：MODEL_NAME；模型路径：MODEL_BASE_PATH， 默认值为 /models
 
-#### 查看模型信息
-```
-curl http://localhost:8501/v1/models/half_plus_two/metadata
-```
-
-#### 测试调用
-这里使用RestApi接口测试
+#### 请求测试
+这里使用RestApi接口请求测试
 ```
 curl -d '{"instances": [1.0, 2.0, 5.0]}' -X POST http://localhost:8501/v1/models/half_plus_two:predict
-
-返回结果：
+```
+返回结果
+```
 {
     "predictions": [2.5, 3.0, 4.5]
 }
 ```
 
-## 使用配置文件
-启动serving时，可以使用类似json格式的配置文件，注意需要多模型加载时必须使用配置文件指定。
+### 模型配置文件
+serving需要支持多模型服务时，需要使用模型配置文件。
 
-### 带配置文件启动serving
+#### 启动 serving (带模型配置)
 ```
-docker run -dt -p 8501:8501 -v "$(pwd)/models/:/models/" tensorflow/serving --model_config_file=/models/models.config --model_config_file_poll_wait_seconds=60
+docker run -dt -p 8501:8501 -v "$TESTDATA/:/models/" tensorflow/serving --model_config_file=/models/models.config --model_config_file_poll_wait_seconds=60
 ```
+参数说明
+- --model_config_file：设置模型配置文件的路径，配置文件名可以自定义
+- --model_config_file_poll_wait_seconds：系统定时检查配置文件是否修改，该配置为检查的间隔时间
 
-### 加载多模型
+#### 配置reload方式
+- 配置文件定时检查：通过--model_config_file_poll_wait_seconds设置检查的间隔频率。
+- RPC调用：主动调用gRPC的HandleReloadConfigRequest接口，执行reload。
+
+#### 多模型配置示例
 ```
 model_config_list {
   config {
-    name: 'my_first_model'
-    base_path: '/tmp/my_first_model/'
+    name: 'half_plus_two'
+    base_path: '/models/saved_model_half_plus_two_cpu'
+    model_platform: 'tensorflow'
   }
+
   config {
-    name: 'my_second_model'
-    base_path: '/tmp/my_second_model/'
+    name: 'half_plus_three'
+    base_path: '/models/saved_model_half_plus_three'
+    model_platform: 'tensorflow'
   }
 }
 ```
 
-### 加载多版本
-模型目录下可以有多个版本，通过 model_version_policy 指定加载版本，如果不指定默认加载版本号最大的(最新)。
+#### 多版本控制
+模型目录下可以有多个版本(版本号为子目录名)，serving 加载时默认只加载版本号最大的那个模型；版本号必须是整数，一般用时间戳作为版本号。
+
+如果要同时加载多个版本，需要在模型配置文件中通过 model_version_policy 指定, 支持all(全部加载)和specific(指定versions)两种配置。
+
+##### 配置示例
 ```
-model_version_policy {
-  specific {
-    versions: 42
-    versions: 43
+model_config_list {
+  config {
+    name: 'saved_model_half_plus_two_2_versions'
+    base_path: '/models/saved_model_half_plus_two_2_versions'
+    model_platform: 'tensorflow'
+    model_version_policy {
+      specific {
+        versions: 123
+        versions: 124
+      }
+    }
   }
 }
 ```
 
+##### 客户端指定版本
 gRPC和Rest客户端调用模型时可以指定版本号，如果不指定默认使用版本号最大的。
 ```
-curl -d '{"instances": [1.0, 2.0, 5.0]}' -X POST http://localhost:8501/v1/models/half_plus_two:predict
-curl -d '{"instances": [1.0, 2.0, 5.0]}' -X POST http://localhost:8501/v1/models/half_plus_two/versions/00000123:predict
+curl -d '{"instances": [1.0, 2.0, 5.0]}' -X POST http://localhost:8501/v1/models/half_plus_two/versions/123:predict
 ```
 
-### 版本号别名
-可以给版本号设置别名，当版本更新时，只需要修改别名配置，而客户端使用别名访问，对版本更新是不感知的。
+##### 版本别名
+版本可以起一个别名，客户端访问模型时用别名替代版本号，当版本更新时，只需修改模型配置文件，而客户端对版本变化是不感知的。
 
-版本别名只能分配给已经加载的模型，这样设计是防止别名请求指到无效的模型上，当模型加载完成，配置被reload时别名才生效。
+版本别名只能在对应模型加载成功后才有效，这样设计是防止版本切换时，版本请求指向无效的模型。
 
+Rest客户端不支持版本别名，gRPC客户端支持。
+
+##### 别名配置示例
 ```
-version_labels {
-  key: 'stable'
-  value: 42
+model_config_list {
+  config {
+    name: 'saved_model_half_plus_two_2_versions'
+    base_path: '/models/saved_model_half_plus_two_2_versions'
+    model_platform: 'tensorflow'
+    model_version_policy {
+      all {}
+    }
+    version_labels {
+        key: 'stable'
+        value: 22
+    }
+    version_labels {
+        key: 'gray'
+        value: 23
+    }
+  }
 }
-version_labels {
-  key: 'canary'
-  value: 43
-}
-```
-gRPC和Rest客户端调用模型时可以指定版本别名
-```
-curl -d '{"instances": [1.0, 2.0, 5.0]}' -X POST http://localhost:8501/v1/models/half_plus_two/labels/stable:predict
+
 ```
 
 ## 模型部署
@@ -138,11 +164,34 @@ tensorflow-estimator支持将模型导出为servable_model格式，包含一个p
                 -variables
 ```
 
-### 热更新
-serving 热更新时，会检查配置文件是否有变动，并只更新有变动的内容，比如配置文件模型A改成了模型B，serving会加载B并卸载A。
+### 模型热更新
+tf-serving 会监控模型根目录下的文件变化，并根据模型配置分析决定是否启动热更新，如果变化涉及模型更新，则会立刻执行热更新。
 
-#### 热更新触发方式
-- 配置文件定时检查：通过设置--model_config_file_poll_wait_seconds检查更新配置。
-- RPC调用：主动调用gRPC的HandleReloadConfigRequest接口，进行检查更新。
+模型的热更新和配置文件的检查更新是各自独立执行，模型热更新时，仍然沿用内存中已加载的模型配置。
+
+#### 模型升级
+- 模型配置为不指定版本时，默认加载最新的版本，当在根目录下创建一个新版本时，立即触发热更新，tf-serving会卸载旧模型，加载新模型。
+- 模型配置为加载所有版本并使用别名，当在根目录创建新版本时，触发热更新并立刻被加载，但此时客户端不能使用，需要修改配置文件中别名的指向，并等待配置文件更新生效。
+
+#### 模型回滚
+- 模型配置为不指定版本时，默认加载最新的版本，此时删除最新版本，模型会自动回滚到上一个版本。
+
+## 客户端调用
+客户端支持RestApi和gRPC两种接口，通过RestApi接口可以很方便的查看模型的一些信息和状态
+
+### Rest接口
+#### 查看模型状态
+```
+curl http://localhost:8501/v1/models/half_plus_two
+```
+
+#### 查看模型信息
+```
+curl http://localhost:8501/v1/models/half_plus_two/metadata
+```
+### gRPC接口
+#### gRPC客户端示例
+[gRPC_Client](https://github.com/minggaodong/serving/blob/master/tensorflow_serving/example/resnet_client.cc)
+
 
 
