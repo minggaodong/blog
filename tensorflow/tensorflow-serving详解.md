@@ -147,21 +147,16 @@ model_config_list {
 
 ## 模型部署
 ### 模型格式
-离线训练时保存的模型是 checkpoint 格式，而 TensorFlow Serving 则支持的是servable_model格式。
+离线训练时保存的模型是 checkpoint 格式，而 TensorFlow Serving 则支持的是 saved_model 格式。
 
-tensorflow-estimator支持将模型导出为servable_model格式，包含一个pb文件和一个variables目录。
-
+#### 模型格式示例
 ```
--ckpt_model
-        -checkpoint
-        -***.ckpt.data-00000-of-00001
-        -***.ckpt.index
-        -***.ckpt.meta
-        
--servable_model
-        -version
-                -saved_model.pb
-                -variables
+|--saved_model_dir
+|    |--20200715
+|        |--saved_model.pb
+|        |--variables
+|            |--variables.data-00000-of-00001
+|            |--variables.index
 ```
 
 ### 模型热更新
@@ -176,22 +171,24 @@ tf-serving 会监控模型根目录下的文件变化，并根据模型配置分
 #### 模型回滚
 - 模型配置为不指定版本时，默认加载最新的版本，此时删除最新版本，模型会自动回滚到上一个版本。
 
-## 客户端调用
-客户端支持RestApi和gRPC两种接口，通过RestApi接口可以很方便的查看模型的一些信息和状态
-
-### Rest接口
-#### 查看模型状态
-```
-curl http://localhost:8501/v1/models/half_plus_two
-```
-
-#### 查看模型信息
+## 模型调用
+在调用一个模型前，首先需要通过 metadata 接口查看模型导出的方法
 ```
 curl http://localhost:8501/v1/models/half_plus_two/metadata
 ```
-### gRPC接口
-#### gRPC客户端示例
-[gRPC_Client](https://github.com/minggaodong/serving/blob/master/tensorflow_serving/example/resnet_client.cc)
+meta信息返回
+```
+
+```
+模型导出的方法定义在 signature_def 对象下，每个方法包含
+- method_name：方法名称
+- input：方法输入，张量列表，通过 name 标识
+- output：方法输出，也是张量列表，通过 name 标识
+
+调用模型时，首先构造一个 input 对象，input 对象是一个张量列表，每个张量对应到一个具体特征，并通过张量 name 进行区分标识。
+
+### gRPC客户端调用
+gRPC客户端调用代码参考：[gRPC_Client](https://github.com/minggaodong/serving/blob/master/tensorflow_serving/example/resnet_client.cc)
 
 
 
