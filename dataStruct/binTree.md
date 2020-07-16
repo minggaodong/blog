@@ -76,28 +76,25 @@ TreeNode* deleteBST(TreeNode* root, int target) {
 		// 找到删除节点
 		if (!root->left) {
 			node = root->right;
+			delete root;
 		} else if (!root->right) {
 			node = root->left;
+			delete root;
 		} else {
-			// 
-			
-			
 			// 左右子树都存在，找到左子树的最右侧那个节点
 			TreeNode* tmp_node = root->left;
 			while (tmp_node->right)
 				tmp_node = tmp_node->right;
 			
 			// 方法1：将右子树直接挂到左子树上；该方法效率最高，但是会破坏树的平衡结构
-			node = root->left;
 			tmp_node->right = root->right;
+			node = root->left;
+			delete root;
 			
 			// 方法2：将左子树最右侧节点value拷贝给要删除节点，并删除左子树最右侧那个节点；该方法效率不高
 			root->value = tmp_node->value;
 			root->left = deleteBST(root->left, tmp_node->value);
 		}
-		
-		// 执行删除
-		delete root;
 	}
 	return node;
 }
