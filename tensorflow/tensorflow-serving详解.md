@@ -180,16 +180,17 @@ curl http://localhost:8501/v1/models/half_plus_two/metadata
 
 模型提供的导出方法定义在 signature_def 对象下，包含
 - method_name：方法名称
-- input：方法输入，张量列表，通过 name 标识
-- output：方法输出，也是张量列表，通过 name 标识
+- input：方法输入，tensor 数组，每个元素代表一个输入特征，通过 tensor.name 来标识特征，不同特征在数组中的顺序没有要求
+- output：方法输出，tensor 数组，每个元素代表一个输出结果，通过 tensor.name 来标识输出结果
 
-请求 predict 时，需要构造一个和 Signature 完全相同的 input，大小必须相等且张量 name 必须完全匹配，否则 predict 底层 input 校验失败直接返回错误。
+调用方法时，需要构造一个和 Signature 完全相同的 input，大小必须相等且 tensor.name 必须完全匹配，否则 predict 底层会校验报错。
 
-请求 predict 时，可以设置需要返回的 output 目标张量，要保证设置的返回张量在 Sinnature 中必须存在，否则报错。
+可以指定调用只返回 output 中的某一个 tensor 输出，但是要保证指定返回的 tensor.name 必须在 Sinnature 中存在，否则校验报错。
+
+### batch
+在 signature_def 中 input 的每个 tensor 元素的 shape 为 (-1, 1)，-1的含义是不指定，在调用时，可以将 tensor.shape 设置为 (batch, 1)，batch 表示批量请求的个数。
+
 
 ### gRPC客户端调用
 gRPC客户端调用代码参考：[gRPC_Client](https://github.com/minggaodong/serving/blob/master/tensorflow_serving/example/resnet_client.cc)
-
-### predict 过程源码分析
-- 
 
