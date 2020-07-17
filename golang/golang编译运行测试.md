@@ -1,8 +1,8 @@
 # golang 编译测试
 
-## 编译构建
+## 编译
 ### go build
-golang 中使用 go build 命令编译代码，编译时会自动搜索当前目录下的所有 .go 文件进行编译，并在当前目录下生成和目录名相同的可执行文件。
+golang 中使用 go build 命令编译代码，编译时会搜索当前目录下的所有 .go 文件，并在当前目录下生成与目录同名的可执行文件。
 
 golang 编译时会以源码形式编译所用 import 导入的依赖包。
 
@@ -33,9 +33,11 @@ go build -race
 设置 -race 标志可以开启竞态检测器，程序运行结束后，会将多个 goroutine 竞争访问的变量信息打印出来。
 
 ### GOPATH
-GOPATH 是 golang 的一个环境变量，允许配置多个目录，golang 通过 go get 或者 go build 安装或搜索依赖包的时候，通过 GOPATH 指定路径依次访问。
+GOPATH 是 golang 的一个环境变量，代表 golang 项目和依赖包的工作目录。
 
-GOPATH约定了三个子目录
+golang 通过 go get 或者 go build 安装查找依赖包的时候，都基于 GOPATH 指定的路径，GOPATH 路径可以有多个。
+
+GOPATH 约定了三个子目录
 - src: 存放源代码（比如：.go .c .h .s等）
 - pkg: 编译后生成的文件（比如.a）
 - bin: 编译后生成的可执行文件。
@@ -78,7 +80,7 @@ require (
 )
 ```
 
-项目引用的某些库可能因为墙无法访问，可以通过 replace 替换为 github 上对应的库，也可以修改成本地库的路径
+项目引用的某些库可能因为被墙无法访问，可以通过 replace 替换为 github 可访问的库，也可以修改成本地路径
 ```
 replace (
     golang.org/x/text v0.3.0 => github.com/golang/text v0.3.0
