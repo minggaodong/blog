@@ -111,3 +111,55 @@ tensorflow 源码按照框架分层来组织文件
 
 core 为核心实现
 ![core](images/tensor_flow_core.png)
+
+### 计算过程
+![work](images/worker.png)
+#### 图传递
+- 前端 client 开启 session，通过它建立和后端 master 之间的连接。
+- 执行 session.run()，将构造好的计算图（graph）序列化为 graphDef 后，以 protobuf 的格式传递给 master。
+
+#### 图剪枝
+- master 根据 session.run() 传递的 fetches 和 feeds 列表，反向遍历全图，进行剪枝，得到最小依赖子图。
+
+#### 图分裂
+- master 将最小子图分裂为多个 Graph Partition，并注册到多个 worker 上，一个 worker 对应一个 Graph Partition。
+
+#### 图二次分裂
+- worker 根据当前可用硬件资源，如 CPU GPU，将 Graph Partition 按照 op 算子设备约束规范（例如tf.device(’/cpu:0’)，二次分裂到不同设备上。
+
+#### 图运行
+- 对于每一个计算设备，worker 依照 op 在 kernel 中的实现，完成 op 的运算。
+- 设备间数据通信可以使用 send/recv 节点，而 worker 间通信，则使用 GRPC 或 RDMA 协议。
+
+### 模型使用
+离线训练得到一个模型文件，要使用这个模型进行预测，则涉及到模型的加载和调用，这里分析下 C++ 接口下的实现。
+
+#### 模型加载
+模型加载 API 定义在 tensorflow/cc/loader.h 中，通过调用 LoadSavedModel 返回一个 SavedModelBundle 对象。
+
+SavedModelBundle 对象加载了模型的计算图和参数，并创建一个 session 负责调用。
+
+##### 加载过程
+- 将模型目录下的 saved_model.pb 文件，解析成 proto 对象，得到计算图 MetaGraphDef。
+- 为计算图创建一个 session，如果 SessionOptions.target 为空则创建单机版，否则创建分布式版。
+- 加载模型目录下 variables 变量参数。
+
+#### 模型调用
+通过 session.run 调用模型，传入参数有
+- inputs：输入参数，是一个 pair<name, tensor> 数组，每个元素对应一类特征，用 name 标识。
+- output_names：要调用的方法列表，是一个 string 数组，每个元素代表一个方法名。
+- outputs：输出结果，是一个 tensor 数组，和 output_names 定义的方法一一对应。
+- run_metadata：定义运行元信息，记录训练运算时间和内存占用等信息。
+- threadpool_options：自定义的线程池。
+
+### 并行计算
+同一个 session 下，为了快速计算需要将 op 进行并行计算，而对单机版来说就是使用多线程并行，也就是线程池。
+
+tensorflow 支持三种 session 和线程池的关系，在初始化 session 的时候会根据 SessionOptions.config 不同配置来设置。
+- 单个 session 设置多个线程池：创建多个线程池，如果线程池的 global_name 为空，代表是自己 owned 的需要自己关闭。
+- 单个 session 设置单个线程池：为 session 生成独立的线程池，需要自己关闭。
+- 多个会话共享线程池：默认配置，所有 session 共享一个线程池。
+
+默认情况下，tensorflow 所有 session 公用一个全局的线程池，可以在 session.run 中传入自定义的线程池提高并发性能。
+
+线程池大小由 SessionOptions.config 设置，如果没有设置，默认为 cpu 的核数。
