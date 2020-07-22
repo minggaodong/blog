@@ -9,7 +9,7 @@
 
 ## 源码解析
 ### 代码结构
-![结构图](../image/sentinel.png)
+![结构图](images/sentinel.png)
 
 ### [api](https://github.com/alibaba/sentinel-golang/tree/v0.4.0/api)
 api包面向户程序，提供了使用Sentinel功能的入口函数。
