@@ -6,7 +6,7 @@ Thrift 是 Facebook 2007年开源的 RPC 通信框架，目前属于 Apache 开�
 Thrift 通过一个中间语言（IDL）来定义 RPC 的接口和数据类型，由编译器生成不同语言的代码，由这些自动生成的代码负责 RPC 协议层和传输层的实现。
 
 ## 架构原理
-Thrift 的架构自下而上分为传输层（Transport），协议层（Protocol），服务层（client/server）。
+Thrift 的架构自下而上分为传输层（Transport），协议层（Protocol），服务层（Client/Server）。
 
 ![thrift](images/thrift.png)
 
