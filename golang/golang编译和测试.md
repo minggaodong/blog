@@ -47,12 +47,17 @@ go mod 是官方在 Go1.11 版本之后推出的版本管理工具，并且从 G
 
 go mod 编译的优点
 - 项目存放目录可以随意指定，不必放在 GoPath 指定的 src 目录下。
-- 执行build时，可以自动解决包依赖，会自动下载对应版本的依赖包，不需要手动 go get 安装。
+- 执行 go build 时，可以自动解决包依赖，并下载对应版本的依赖包，不需要手动通过 go get 安装。
 
 #### 配置代理
-go mod 下编译会自动下载第三方依赖包，很多国外网站因为被墙，可以设置go proxy代理
+go build 时会自动下载依赖包，很多国外网站因为被墙，可以设置 go proxy 代理访问，direct 是默认不通过代理直接访问。
 ```
-export GOPROXY=https://mirrors.aliyun.com/goproxy/
+export GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+```
+
+gitlab 私有仓库不支持默认的 https 下载，使用时需要手动下载下来，-insecure 仅支持 go get，表示不校验 https。
+```
+go get -insecure gitlab.com/xxxx
 ```
 
 #### go mod 命令
@@ -62,7 +67,7 @@ go mod init github.com/gin-gonic/gin
 ```
 在项目目录下执行 go mod init xxx(module name)，会生成一个 go.mod 文件，用来保存 module 名称，版本以及依赖库。
 
-module 名称使用 github 下的项目全路径，内部 import 其他依赖包时也要使用全路径。 
+module 名称使用 github 下的项目全路径，内部 import 其他依赖包时也要使用全路径，
 
 go mod 初始化完成后，执行 go test 或者 go build，会在 go.mod 内生成 requeire 信息，并下载对应的依赖包保存到 $GOPATH/pkt/mod 目录下。
 
