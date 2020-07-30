@@ -79,8 +79,8 @@ ptr_a->ptr_b = ptr_b;
 ptr_b->ptr_a = ptr_a; // 设置完成后，产生循环依赖
 ```
 
-### weak_ptr 解决循环引用
-将 A 中的成员变量 ptr_b 改成 std::weak_ptr<B> 类型，就解决了循环引用问题。
+### 解决循环引用
+将 A 中的成员变量 ptr_b 改成 std::weak_ptr 类型，就解决了循环引用问题。
 
 ```
 class B;
