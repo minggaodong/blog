@@ -88,9 +88,57 @@ echo 4096 > /proc/sys/net/core/somaxconn
 在连接关闭时，由于 TCP 是全双工的，通信双方需要根据业务逻辑分别关闭各自发送端，所以需要四次挥手。
 
 #### 半关闭状态
-客户端调用 close 关闭了发送通道，而服务端没有调用 close 关闭连接，这种状态就称之为半关闭。
+A 调用 close 关闭连接，而对端 B 没有调用 close 关闭，A 和 B 的连接就处于半关闭状态。
+```
+A -----FIN-----> B
+FIN_WAIT_1       CLOSE_WAIT
+A <----ACK------ B
+FIN_WAIT_2
+```
 
-服务端 CLOSE_WAIT 连接状态过多，说明半关闭连接多，原因是服务端可能出现了连接泄露 BUG，或者压力过大，来不及 close()。
+CLOSE_WAIT 状态的连接过多是不正常的，原因可能是出现了连接泄露 BUG，或者压力过大，来不及 close()。
 
 #### TIME_WAIT 状态
+A 调用 close 关闭连接，B 收到 FIN 后也调用 close 关闭连接，A 收到 B 的 FIN 后，会进入 TIME_WAIT 状态，并发送 ACK 给 B。
+```
+A -----FIN-----> B
+FIN_WAIT_1       CLOSE_WAIT
+A <----ACK------ B
+FIN_WAIT_2
 
+(B can send more data here, this is half-close state)
+
+A <----FIN------ B
+TIME_WAIT        LAST_ACK
+A -----ACK-----> B
+|                CLOSED
+2MSL Timer
+|
+CLOSED
+```
+
+#### TIME_WAIT 作用
+##### 保证连接正常释放
+A 发送的 ACK 如果丢失，B 会重发 FIN，此时如果 A 的连接被关闭，TCP 传输层会返回 B 一个 RST 错误，影响关闭流程。维护一个 TIME_WAIT 状态可以重发 ACK，让对端 B 正常释放。
+
+##### 避免旧数据包影响新连接
+TCP 使用四元组来区分一个连接，如果 A 端不经过 TIME_WAIT 直接关闭，B 马上发起一个新的连接，新连接四元组和旧连接完全一样，TCP 无法区分新旧连接，这个时候网络中存在的旧数据包到来后会影响新的连接，而等待 TIME_WAIT 之后，可以保证新连接（相同四元组）建立后，网络中没有残存的旧数据包。
+
+#### TIME_WAIT 持续时间
+TIME_WAIT 状态持续 2MSL（1分钟），MSL（Max Segment Lifetime）是数据包在网络中传输的最大生命周期，默认 30 秒。
+
+2MSL 时间到达后，连接会被关闭，此时如果又收到来自 B 的 FIN，则会返回 RST 错误，B 收到 RST 后关闭连接。
+
+MSL 的大小可以根据网络状况设置，网络状态好时 MSL 可以设置短一点。
+
+#### TIME_WAIT 危害
+频繁主动关闭连接，会产生大量的 TIME_WAIT，这些连接仍占用文件描述符和少量内存（4K），如果是客户端还会占用1个本地端口。
+
+##### 解决方案
+可以使用长连接，避免连接的频繁关闭，还可以修改内核参数
+```
+net.ipv4.tcp_tw_reuse = 0    表示开启端口重用（只针对客户端connect有效）
+net.ipv4.tcp_tw_recycle = 0  表示开启快速回收（慎用，在 NAT 环境下会出现丢包导致连接失败）
+```
+- 针对客户端，主要解决端口耗尽问题，可打开 tcp_tw_reuse 设置，不建议打开 tcp_tw_recycle，帮助不大。
+- 作为服务端，主要是文件描述耗尽问题，没有什么办法解决，不建议打开 tcp_tw_recycle，除非确保服务器不是 NAT 网络。
