@@ -181,3 +181,36 @@ bool readFileMmap(const std::string& fileName) {
   munmap(addr, len); 
 }
 ```
+
+### 零拷贝
+#### 用户态和内核态
+执行系统调用时，会在用户态和内核态之间产生切换，带来 cpu 上下文切换开销，以及用户栈到内核栈的来回拷贝。
+
+#### DMA
+DMA 是直接存储器访问的缩写，是一种支持外部设备不通过 CPU 而直接与内存交换数据的接口技术。
+
+DMA 解放了 CPU，让 CPU 可以去执行其他任务。
+
+#### IO 操作
+IO 操作涉及到内核缓冲区到用户缓冲区的拷贝，文件 IO 的内核缓冲区为页缓存，网络 IO 的内核缓冲区为 socket 缓冲区。
+
+IO 读写操作需要经历 4 次内核切换，4 次数据拷贝，CPU 和 DMA 拷贝各2次。
+![zero_copy.png](images/zero_copy.png)
+
+#### 零拷贝技术
+零拷贝是指避免将数据在内核缓冲区和用户缓冲区之间相互拷贝，从而减少用户空间和内核空间的上下文切换。
+
+##### sendfile 函数
+```
+#include<sys/sendfile.h>
+ssize_t senfile(int out_fd,int in_fd,off_t* offset,size_t count);
+```
+sendfile 函数支持两个文件描述符在内核中直接传输数据，从而实现零拷贝，效率很高。
+
+sendfile 的 in_fd 必须是磁盘文件，out_fd 必须是 socket。
+
+![zero_copy1.png](images/zero_copy1.png)
+
+##### mmap 内存映射
+mmap 将磁盘文件映射到用户虚拟内存空间上，不需要拷贝到用户空间，就可以直接进行读写。
+mmap 只需要 3 次数据拷贝，DMA 2次，CPU 1次。
