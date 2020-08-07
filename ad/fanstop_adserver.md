@@ -54,7 +54,7 @@
 采用 DNN 深度模型，使用更多的特征，更复杂的网络结构，提升预测效果。
 
 ## 分布式设计
-![consul](images/fanstop_consul.png)
+<img src="images/fanstop_consul.png" alt="" width="812" height="346" align="bottom" />
 
 ### 服务发现
 采用 consul 实现服务发现，故障节点自动摘除。
