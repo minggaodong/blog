@@ -178,3 +178,37 @@ bool checkInclusion(string s1, string s2) {
     return false;
 }
 ```
+### 209. 长度最小的子数组
+给定一个含有 n 个正整数的数组和一个正整数 s ，找出该数组中满足其和 ≥ s 的长度最小的 连续 子数组，并返回其长度。如果不存在符合条件的子数组，返回 0。
+#### 示例：
+```
+输入：s = 7, nums = [2,3,1,2,4,3]
+输出：2
+解释：子数组 [4,3] 是该条件下的长度最小的子数组。
+```
+
+#### 代码
+```
+   int minSubArrayLen(int s, vector<int>& nums) {
+        int min_size = 0;
+        int win_sum = 0;
+        
+        int l = 0, r = 0;
+        while (r < nums.size()) {
+            win_sum += nums[r++];	 // 入窗
+            //printf("in win: num=%d, win_sum=%d\n", nums[r-1], win_sum);
+            while (l < r && win_sum > s) {
+                if (win_sum - nums[l] < s)
+                    break;
+                win_sum -= nums[l++]; // 出窗
+                //printf("out win: num=%d, win_sum=%d\n", nums[l-1], win_sum);
+            }
+
+            if (win_sum >= s && ((min_size == 0 || r - l < min_size)))
+                min_size = r - l;
+            //printf("min_size=%d, curr_size=%d\n", min_size, r-l);
+        }
+        
+        return min_size;
+    }
+```
