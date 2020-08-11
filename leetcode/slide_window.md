@@ -1,8 +1,29 @@
 # 滑动窗口解析
 ## 概述
+滑动窗口用于解决两个字符串间比较的问题，比如在一个字符串中寻找符合另一个字符串某种特征的子串。
 
+滑动窗口一般需要用到“双指针”来进行求解，右指针右移入窗，左指针右移出窗。
 
+验证字符时，需要借助于 unordered_map 来实现 O(1) 查询，使用 count() 方法判断 key 是否存在；使用中括号 map[key] 访问不存在的 key 时，c++ 默认会创建这个 key，并赋值为 0 。
 
+### 解题框架
+```
+int left = 0, right = 0;
+
+while (right < s.size()) {
+    window.add(s[right]);
+    right++;
+    
+    while (valid) {
+        window.remove(s[left]);
+        left++;
+    }
+}
+```
+- 滑动窗口的解题框架就是定义两个左右指针
+- 右指针右移获取字符，加入窗口
+- 判断新字符是否符合要求，如果不符合需要收缩窗口
+- 将左指针右移来收缩窗口，收缩到符合要求的位置
 
 ## 经典题型
 ### 76. 最小覆盖子串
@@ -112,5 +133,48 @@ int lengthOfLongestSubstring(string s) {
     }
 
     return max_len;
+}
+```
+
+### 567. 字符串的排列
+给定两个字符串 s1 和 s2，写一个函数来判断 s2 是否包含 s1 的排列。
+
+换句话说，第一个字符串的排列之一是第二个字符串的子串。
+
+#### 示例1:
+```
+输入: s1 = "ab" s2 = "eidbaooo"
+输出: True
+解释: s2 包含 s1 的排列之一 ("ba").
+```
+
+#### 示例2:
+```
+输入: s1= "ab" s2 = "eidboaoo"
+输出: False
+```
+
+#### 思路
+- 创建一个 unordered_map s1 中字符出现的次数。
+- 右指针移动一位，获取一个新字符，设置unordered_map的值减1，表示入窗。
+- 判断如果新字符在 map 中 value 为 -1，则说明新字符是非法的，需要收缩窗口、
+- 移动左指针收缩窗口，设置unordered_map的值加1，代表出窗；一直收缩到新字符值不为-1为止
+
+#### 代码
+```
+bool checkInclusion(string s1, string s2) {
+    unordered_map<char, int> mp;
+    for (auto &c: s1) mp[c]++; // 记录 出现次数的差值
+
+    int l = 0, r = 0;
+    while (r < s2.size()){
+        char c = s2[r++];
+        mp[c]--; // 入窗
+        while (l < r && mp[c] < 0){ // 出窗
+            mp[s2[l++]] ++;
+        }
+        if (r - l == s1.size()) return true;
+    }
+    return false;
 }
 ```
