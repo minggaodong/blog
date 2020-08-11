@@ -1,10 +1,10 @@
 # 滑动窗口解析
 ## 概述
-滑动窗口用于解决两个字符串间比较的问题，比如在一个字符串中寻找符合另一个字符串某种特征的子串。
+滑动窗口用于解决在一个字符串或者数组上，寻找符合某种特征的子序列。
 
 滑动窗口一般需要用到“双指针”来进行求解，右指针右移入窗，左指针右移出窗。
 
-验证字符时，需要借助于 unordered_map 来实现 O(1) 查询，使用 count() 方法判断 key 是否存在；使用中括号 map[key] 访问不存在的 key 时，c++ 默认会创建这个 key，并赋值为 0 。
+验证子元素时，可以借助于 unordered_map 来实现 O(1) 查询，使用 count() 方法判断 key 是否存在；使用中括号 map[key] 访问不存在的 key 时，c++ 默认会创建这个 key，并赋值为 0 。
 
 ### 解题框架
 ```
@@ -14,7 +14,7 @@ while (right < s.size()) {
     window.add(s[right]);
     right++;
     
-    while (valid) {
+    while (left < right && valid) {
         window.remove(s[left]);
         left++;
     }
