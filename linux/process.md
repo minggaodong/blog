@@ -5,16 +5,21 @@
 操作系统中用 PCB（process control block）来表示进程，linux 中的 PCB 是 task_struct 结构体。
 ```
 struct task_struct {
-	...
-     /*PID: 内核进程唯一标识，对应的是线程id*/
-     /*tgid：用户进程唯一标识，对应的进程ID，getpid返回该值*/
-	 /*内存指针*/
-     /* 状态*/
-     /* 优先级*/
-     /* 程序计数器：下一条指令地址*/
-     /* 上下文数据：进程执行时处理器的寄存器数据*/
-	...
-}
+	// 进程状态
+	long			  state;
+	// 虚拟内存结构体
+	struct mm_struct  *mm;
+	// 进程号
+	pid_t			  pid;
+	// 指向父进程的指针
+	struct task_struct __rcu  *parent;
+	// 子进程列表
+	struct list_head		children;
+	// 存放文件系统信息的指针
+	struct fs_struct		*fs;
+	// 一个数组，包含该进程打开的文件指针
+	struct files_struct		*files;
+};
 ```
 
 ### 僵尸进程
