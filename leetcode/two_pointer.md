@@ -79,3 +79,37 @@ int removeDuplicates(vector<int>& nums) {
 }
 ```
 
+### 80. 删除排序数组中的重复项 II
+给定一个排序数组，你需要在原地删除重复出现的元素，使得每个元素最多出现两次，返回移除后数组的新长度。
+#### 示例
+```
+给定 nums = [0,0,1,1,1,1,2,3,3],
+
+函数应返回新长度 length = 7, 并且原数组的前五个元素被修改为 0, 0, 1, 1, 2, 3, 3 。
+
+你不需要考虑数组中超出新长度后面的元素。
+```
+#### 思路
+- 采用上一题思路，只不过移动时判断前一个元素是否重复
+
+#### 代码
+```
+int removeDuplicates(vector<int>& nums) {
+    if (nums.size() < 3)
+        return nums.size();
+
+    int l = 0, r = 0;
+    for (r = 1; r < nums.size(); r++) {
+        if (nums[r] != nums[l]) {
+            nums[++l] = nums[r];
+        } else {
+            // 相等时，判断l前一个元素
+            if ((l == 0 || nums[l] != nums[l-1])) {
+                nums[++l] = nums[r];
+            }
+        }
+    }
+
+    return l+1;
+}
+```
