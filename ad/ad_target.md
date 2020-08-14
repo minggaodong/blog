@@ -27,6 +27,13 @@ wide 部分是用 FTRL（Follow-the-regularized-leader） + L1 正则化学习�
 
 deep组件是用 AdaGrad 来学习。
 
+### 特征输入
+wide 部分的特征主要是少量的交叉特征，特征可以是任意类型，一般采用 one-hot 编码为 categorical 类型。
+
+deep 部分的特征可以包含全量特征，特征必须转为 dense 类型，包括 numeric, indicator, embeding。
+
+deep 部分可以采用正则化和dropout 进行简化，防止过拟合。
+
 ## 模型训练
 ### 模型训练流程图
 <img src="images/train.png" alt="" width="542" height="724" align="bottom" />
