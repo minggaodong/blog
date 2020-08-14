@@ -70,3 +70,42 @@ int rangeBitwiseAnd(int m, int n) {
 }
 ```
 
+## 异或(^)
+### 136. 只出现一次的数字
+给定一个非空整数数组，除了某个元素只出现一次以外，其余每个元素均出现两次。找出那个只出现了一次的元素。
+
+#### 示例
+```
+输入: [4,1,2,1,2]
+输出: 4
+```
+#### 思路
+- 采用异或的特性，相同数字互相抵消，剩余的就是只出现了一次的数字
+#### 代码
+```
+int singleNumber(vector<int>& nums) {
+    for (int i = 1; i < nums.size(); i++) {
+        nums[0] ^= nums[i];
+    }
+    return nums[0];
+}
+```
+
+### 461. 汉明距离
+两个整数之间的汉明距离指的是这两个数字对应二进制位不同的位置的数目。
+
+#### 思路
+- x 和 y 异或，然后计算 1 的个数。
+
+#### 代码
+```
+int hammingDistance(int x, int y) {
+    x = x ^ y;
+    int count = 0;
+    while (x > 0) {
+        x = x & (x-1);
+        count++;
+    }
+    return count;
+}
+```
