@@ -31,3 +31,16 @@ deep组件是用 AdaGrad 来学习。
 ### 模型训练流程图
 <img src="images/train.png" alt="" width="542" height="724" align="bottom" />
 
+- 每天定时执行日志清洗任务，将当天的曝光和互动日志分别作为正负样本，按照 10:1 的比例生成到正负样本混洗表中。
+- 每天定时执行样本生成任务，从正负样本混洗表中，选取最近30天的数据导出到 HDFS 指定路径下，作为训练集，从训练集中截取一小部分作为验证集。
+- 提交分布式训练任务，训练模型。
+- 模型训练完成后，将最近训练的 5 个 checkpoint 中 auc 最高的那个模型推送到线上服务指定路径下。
+
+## 线上预估
+### 线上预估服务架构图
+<img src="images/predict.png" alt="" width="400" height="406" align="bottom" />
+
+- 使用 brpc 框架取代原生的 tensorflow-serving。
+- 收到投放引擎的 predict 请求后，首先根据用户 uid 和广告ID 去 laser 特征数据库中查询模型调用的各种特征。
+- 根据模型格式要求，将特征拼接成调用模型的参数，支持通过 batch_size 并行处理多个广告，这里最大为 400.
+- 调用 tensorflow 框架提供的 pridict() 方法，获取预测得分，tensorflow底层采用线程池支持多核处理。
