@@ -38,5 +38,5 @@ Deep组件是用 AdaGrad 来学习。
 
 ## 模型训练
 ### 模型训练流程图
-![train](images/train.png)
+<img src="images/train.png" alt="" width="542" height="724" align="bottom" />
 
