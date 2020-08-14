@@ -120,3 +120,12 @@ Kafka是为了高吞吐量设计的，在满足性能的前提下，不可避免
 ### 同分区消息乱序
 - 生产者发送消息时，如果前一个消息未响应，可以继续发送消息，如果前一个消息最终超时导致重发，则会出现消息乱序。
 - 配置 max.in.flight.requests.per.connection：限制客户端在单个连接上能够发送的未响应请求的个数。设置此值是1表示kafka broker在响应请求之前client不能再向同一个broker发送请求，但吞吐量会下降。
+
+## 问答
+### kafka 为什么快？
+- partition 并行处理
+- 顺序写磁盘，充分利用磁盘特性
+- 利用了现代操作系统分页存储 Page Cache 来利用内存提高 I/O 效率
+- 采用了零拷贝技术
+- Producer 生产的数据持久化到 broker，采用 mmap 文件映射，实现顺序的快速写入
+- Customer 从 broker 读取数据，采用 sendfile，将磁盘文件读到 OS 内核缓冲区后，转到 NIO buffer进行网络发送，减少 CPU 消耗
