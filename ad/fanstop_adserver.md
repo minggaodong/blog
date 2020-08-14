@@ -57,7 +57,7 @@
 采用 DNN 深度模型，使用更多的特征，更复杂的网络结构，提升预测效果。
 
 ### 分布式设计
-<img src="images/fanstop_consul.png" alt="" width="812" height="346" align="bottom" />
+<img src="images/distributed.png" alt="" width="705" height="355" align="bottom" />
 
 - 广告投放引擎采用 golang 实现，充分利用 goroutine 的并发优势，服务框架采用 gin ，支持多种中间件嵌入（限流、反作弊等）。
 
