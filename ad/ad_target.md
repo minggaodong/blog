@@ -35,3 +35,8 @@ LR 模型学习不到从未出现过的特征组合，不具备泛化能力。
 Wide 部分是用 FTRL（Follow-the-regularized-leader） + L1 正则化学习。
 
 Deep组件是用 AdaGrad 来学习。
+
+## 模型训练
+### 模型训练流程图
+![train](images/train.png)
+
