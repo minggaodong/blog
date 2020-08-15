@@ -14,7 +14,7 @@ struct TreeNode {
 };
 ```
 
-## 真题演练
+## 递归思想
 ### 104. 二叉树的最大深度
 给定一个二叉树，找出其最大深度。二叉树的深度为根节点到最远叶子节点的最长路径上的节点数。
 
@@ -104,4 +104,78 @@ void dfs(TreeNode* root, int sum) {
     }
 private:
     int count_;
+```
+
+### 543. 二叉树的直径
+给定一棵二叉树，你需要计算它的直径长度。一棵二叉树的直径长度是任意两个结点路径长度中的最大值。这条路径可能穿过也可能不穿过根结点。
+
+#### 示例 :
+```
+给定二叉树
+
+          1
+         / \
+        2   3
+       / \     
+      4   5    
+返回 3, 它的长度是路径 [4,2,1,3] 或者 [5,2,1,3]
+```
+#### 思路
+- 维护一个计数器，递归计算左右子树的深度，求和后得到一个直径，如果大于计数器，则更新计数器
+
+#### 代码
+```
+class Solution {
+public:
+    int diameterOfBinaryTree(TreeNode* root) {
+        max_diameter = 0;
+        dfs(root);
+        return max_diameter;
+    }
+
+    int dfs(TreeNode* root) {
+        if (!root)
+            return 0;
+        
+        int depth_left = dfs(root->left);
+        int depth_right = dfs(root->right);
+        int diameter = depth_left + depth_right;
+        max_diameter = max(diameter, max_diameter);
+        return 1 + max(depth_left, depth_right);
+
+    }
+private:
+    int max_diameter;
+};
+```
+
+### 572. 另一个树的子树
+给定两个非空二叉树 s 和 t，检验 s 中是否包含和 t 具有相同结构和节点值的子树。
+
+#### 思路
+- 双重递归，验证 s 的每个节点，是否和 t 完全一样。
+
+```
+class Solution {
+public:
+    bool isSubtree(TreeNode* s, TreeNode* t) {
+        if (!s)
+            return false;
+        
+        return isSametree(s, t) || isSubtree(s->left, t) || isSubtree(s->right, t);
+    }
+
+    bool isSametree(TreeNode* s, TreeNode* t) {
+        if (s == NULL && t == NULL)
+            return true;
+        
+        if (s == NULL || t == NULL)
+            return false;
+        
+        if (s->val != t->val)
+            return false;
+        
+        return isSametree(s->left, t->left) && isSametree(s->right, t->right);
+    }
+};
 ```
