@@ -179,3 +179,51 @@ public:
     }
 };
 ```
+
+### 110. 平衡二叉树判定
+给定一个二叉树，判断它是否是高度平衡的二叉树。
+
+一棵高度平衡二叉树定义为：一个二叉树每个节点 的左右两个子树的高度差的绝对值不超过1。
+
+#### 示例
+```
+给定二叉树 [3,9,20,null,null,15,7]
+
+    3
+   / \
+  9  20
+    /  \
+   15   7
+
+```
+
+#### 思路
+- 判定左右子树是不是平衡二叉树，判断的同时获取深度，如果左右子树是平滑二叉树，则判断深度差是否大于1
+
+#### 代码
+```
+class Solution {
+public:
+    bool isBalanced(TreeNode* root) {
+        int deepth = 0;
+        return dfs(root, deepth);
+    }
+
+private:
+    bool dfs(TreeNode* root, int& deepth) {
+        if (root == NULL)
+            return true;
+        
+        int deepth_left = 0, deepth_right = 0;
+        if (!dfs(root->left,deepth_left))
+            return false;
+        if (!dfs(root->right, deepth_right))
+            return false;
+        
+        int diff = deepth_left - deepth_right;
+        if (diff > 1 || diff < -1)
+            return false;
+        deepth = max(deepth_left, deepth_right) + 1;
+        return true;
+    }
+```
